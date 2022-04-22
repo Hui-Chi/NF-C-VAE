@@ -1,0 +1,19 @@
+{
+ "model_name": "test_%s",
+ "num_classes": 1,
+ "batch_size": 1024,
+ "test_batch_size": 1,
+ "learning_rate": 0.001,
+ "latent_dim": 15,
+ "beta": 1,       
+ "num_epochs": 40,
+ "data_save_path": "/global/u2/a/agarabag/DarkFlow/data_save/",
+ "model_save_path" : "/global/u2/a/agarabag/DarkFlow/model_save/",
+ "test_data_save_path" : "/global/u2/a/agarabag/DarkFlow/test_data_save",
+ "q_z_output_dim" : 16,
+ "num_flows" : 6, 
+ "num_ortho_vecs" : 8,
+ "num_householder" : 12,
+ "made_h_size" : 330,
+ "convFlow_kernel_size" : 7
+}
