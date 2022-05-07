@@ -87,13 +87,14 @@ class ConvNetRunner:
         self.preprocess_data()
 
     def preprocess_data(self):
-        outerdata_train = np.load("/global/u2/a/agarabag/anomoly_studies/CATHODE/separated_data/outerdata_train.npy")
-        outerdata_test = np.load("/global/u2/a/agarabag/anomoly_studies/CATHODE/separated_data/outerdata_test.npy")
-
-        outerdata_train = outerdata_train[outerdata_train[:,5]==0]
-        outerdata_test = outerdata_test[outerdata_test[:,5]==0]
 
         nFeat = 4
+
+        outerdata_train = np.load("/workdir/huichi/CATHODE/separated_data/outerdata_train.npy")
+        outerdata_test = np.load("/workdir/huichi/CATHODE/separated_data/outerdata_test.npy")
+
+        outerdata_train = outerdata_train[outerdata_train[:,nFeat+1]==0]
+        outerdata_test = outerdata_test[outerdata_test[:,nFeat+1]==0]
 
         data_train = outerdata_train[:,1:nFeat+1]
         print('shape of data_train: ', data_train.shape)
@@ -122,14 +123,21 @@ class ConvNetRunner:
             else:
                 pass
 
+        self.data = data
+        self.x_max = max
+
         cond_max = np.max(np.abs(cond_data))
         if np.abs(cond_max) > 0:
             cond_data = cond_data/cond_max
         else:
             pass
 
+        self.cond_data = cond_data
+        self.N_bkg_SB = cond_data.shape[0]
 
-        trainsize = 500000
+
+        trainsize = outerdata_train.shape[0]
+        self.trainsize = trainsize
         
         x_train = data[:trainsize]
         x_test = data[trainsize:]
@@ -221,7 +229,7 @@ class ConvNetRunner:
                 if y == (len(self.val_loader)): break
                 
                 #Test
-                val_loss, val_kl = test_convnet(self.model, x_val, met_va, batch_size=self.batch_size)
+                _, val_loss, val_kl = test_convnet(self.model, x_val, met_va, batch_size=self.batch_size)
 
                 val_loss_aux += val_loss
                 val_kl_aux += val_kl
@@ -263,48 +271,103 @@ class ConvNetRunner:
         # print("BBBBBGGGGGGGGGG:  ", self.best_train_z_mu)
 
 
-        # np.save('/global/u2/a/agarabag/DarkFlow/model_save/best_latent_mean.npy', self.best_train_z_mu)
-        # np.save('/global/u2/a/agarabag/DarkFlow/model_save/best_latent_std.npy', self.best_train_z_var)
-        # np.save('/global/u2/a/agarabag/DarkFlow/model_save/latent_mean.npy', self.train_z_mu)
-        # np.save('/global/u2/a/agarabag/DarkFlow/model_save/latent_std.npy', self.train_z_var)
+        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean.npy', self.best_train_z_mu)
+        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std.npy', self.best_train_z_var)
+        # np.save('/workdir/huichi/NF-C-VAE/model_save/latent_mean.npy', self.train_z_mu)
+        # np.save('/workdir/huichi/NF-C-VAE/model_save/latent_std.npy', self.train_z_var)
         save_run_history(self.best_model, self.model, self.model_save_path, self.model_name, 
                             self.x_graph, self.train_y_kl, self.train_y_loss, hist_name='TrainHistory')
         # save_run_history(self.best_model, self.model, self.model_save_path, self.model_name, 
                             # self.x_graph, self.val_y_rec, self.val_y_kl, self.val_y_loss, hist_name='ValHistory')
+        save_npy(np.array(self.train_y_loss), self.data_save_path + '%s_train_loss.npy' %self.model_name)
+        save_npy(np.array(self.train_y_kl), self.data_save_path + '%s_train_kl.npy' %self.model_name)
+        save_npy(np.array(self.val_y_loss), self.data_save_path + '%s_val_loss.npy' %self.model_name)
+        save_npy(np.array(self.val_y_kl), self.data_save_path + '%s_val_kl.npy' %self.model_name)
+        
 
         print('Network Run Complete')
+
+
+    def event_generater_SB(self):
+        self.model.load_state_dict(torch.load(self.model_save_path + 'BEST_%s.pt' %self.model_name, map_location=torch.device('cpu')))
+        self.model.eval()
+        with torch.no_grad():
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+            best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean.npy", allow_pickle=True)
+            best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std.npy", allow_pickle=True)
+
+            # reshape to (nEvent, latent_dim)
+            best_z_mu = np.concatenate(best_z_mu, axis=0)
+            best_z_logvar = np.concatenate(best_z_logvar, axis=0)
+
+            best_z_var = np.exp(best_z_logvar)
+            best_z_std = np.sqrt(best_z_var)
+
+            z_samples = np.empty([self.N_bkg_SB, self.latent_dim])
+
+            l=0
+            for i in range(0,self.N_bkg_SB):
+                for j in range(0,self.latent_dim):
+                    z_samples[l,j] = np.random.normal(best_z_mu[i%self.trainsize,j], 0.05+best_z_std[i%self.trainsize,j])
+                l=l+1
+                
+            z_samples_tensor = torch.from_numpy(z_samples.astype('float32')).to(device)
+            cond_data_tensor = torch.from_numpy(np.reshape(self.cond_data, [-1, 1]).astype('float32')).to(device)
+
+            new_events = self.model.decode(z_samples_tensor, cond_data_tensor).data.cpu().numpy()
+
+            for i in range(0,new_events.shape[1]):
+                new_events[:,i]=new_events[:,i]*self.x_max[i]
+
+            np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_events.csv', new_events)
+
+        print("Done generating SB events.")
+
 
     def tester(self):
 
         print('Model Type: %s'%self.flow_ID)
         
         # load model
-        self.model.load_state_dict(torch.load(self.model_save_path + '%s.pt' %self.model_name, map_location=torch.device('cpu')))
+        self.model.load_state_dict(torch.load(self.model_save_path + 'BEST_%s.pt' %self.model_name, map_location=torch.device('cpu')))
 
         # load data
-        self.test_loader = DataLoader(dataset=self.x_test, batch_size=self.batch_size, shuffle=False)
-        self.metTe_loader = DataLoader(dataset=self.met_test, batch_size=self.batch_size, shuffle=False)
+        # self.test_loader = DataLoader(dataset=np.reshape(self.data, [-1, self.data.shape[1]]).astype('float32'), batch_size=self.batch_size, shuffle=False)
+        # self.metTe_loader = DataLoader(dataset=np.reshape(self.cond_data, [-1, 1]).astype('float32'), batch_size=self.batch_size, shuffle=False)
+        
+        self.test_loader = DataLoader(dataset=self.x_train, batch_size=self.batch_size, shuffle=False)
+        self.metTe_loader = DataLoader(dataset=self.met_train, batch_size=self.batch_size, shuffle=False)
+
         # self.weight_test_loader = DataLoader(dataset=self.weight_test, batch_size=self.test_batch_size, shuffle=False, drop_last=True)
 
         print('Starting the Testing Process ...')
-        self.test_ev_rec = []
-        self.test_ev_kl = []
-        self.test_ev_loss = []
+        # self.test_ev_rec = []
+        # self.test_ev_kl = []
+        # self.test_ev_loss = []
+        self.new_events = []
+
         for y, (x_test, met_te) in tqdm(enumerate(zip(self.test_loader, self.metTe_loader))):
             if y == (len(self.test_loader)): break
             
             #Test
-            te_loss, te_kl = test_convnet(self.model, x_test, met_te, batch_size=self.batch_size)
+            x_decoded, _, __ = test_convnet(self.model, x_test, met_te, batch_size=self.batch_size)
+            self.new_events.append(x_decoded.cpu().detach().numpy())
             
-            self.test_ev_loss.append(te_loss.cpu().detach().numpy())
-            self.test_ev_kl.append(te_kl.cpu().detach().numpy())
+            # self.test_ev_loss.append(te_loss.cpu().detach().numpy())
+            # self.test_ev_kl.append(te_kl.cpu().detach().numpy())
             # self.test_ev_rec.append(te_eucl.cpu().detach().numpy())
         # print('loss: ', test_ev_loss)
-        save_npy(np.array(self.test_ev_loss), self.test_data_save_path + '%s_loss.npy' %self.model_name)
-        save_npy(np.array(self.test_ev_kl), self.test_data_save_path + '%s_kl.npy' %self.model_name)
-        save_npy(np.array(self.test_ev_rec), self.test_data_save_path + '%s_rec.npy' %self.model_name)
+        # save_npy(np.array(self.test_ev_loss), self.test_data_save_path + '%s_loss.npy' %self.model_name)
+        # save_npy(np.array(self.test_ev_kl), self.test_data_save_path + '%s_kl.npy' %self.model_name)
+        # save_npy(np.array(self.test_ev_rec), self.test_data_save_path + '%s_rec.npy' %self.model_name)
         # save_csv(data= np.array(self.test_ev_kl), filename= self.test_data_save_path + 'rec_%s.csv' %self.model_name)
         # save_csv(data= np.array(self.test_ev_rec), filename= self.test_data_save_path + 'rec1_%s.csv' %self.model_name)
+        self.new_events = np.concatenate(self.new_events, axis=0)
+        for i in range(0,self.new_events.shape[1]):
+            self.new_events[:,i]=self.new_events[:,i]*self.x_max[i]
+
+        np.savetxt('/workdir/huichi/NF-C-VAE/data_save/gen_train.csv', self.new_events)
 
         print('Testing Complete')
 

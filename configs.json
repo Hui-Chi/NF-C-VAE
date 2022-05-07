@@ -6,14 +6,16 @@
  "learning_rate": 0.001,
  "latent_dim": 15,
  "beta": 1,       
- "num_epochs": 40,
- "data_save_path": "/global/u2/a/agarabag/DarkFlow/data_save/",
- "model_save_path" : "/global/u2/a/agarabag/DarkFlow/model_save/",
- "test_data_save_path" : "/global/u2/a/agarabag/DarkFlow/test_data_save",
+ "num_epochs": 100,
+ "data_save_path": "/workdir/huichi/NF-C-VAE/data_save/",
+ "model_save_path" : "/workdir/huichi/NF-C-VAE/model_save/",
+ "test_data_save_path" : "/workdir/huichi/NF-C-VAE/test_data_save",
  "q_z_output_dim" : 16,
  "num_flows" : 6, 
  "num_ortho_vecs" : 8,
  "num_householder" : 12,
  "made_h_size" : 330,
- "convFlow_kernel_size" : 7
+ "convFlow_kernel_size" : 7,
+ "train_net": 0,
+ "test_net": 0
 }
