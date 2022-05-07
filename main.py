@@ -6,7 +6,7 @@ import argparse
 def parse():
     parser = argparse.ArgumentParser(description="darkflow_configs")
     parser.add_argument('--mode', type=str, default='training', choices=['training', 'testing'], help='Choose if are you training or testing the model')
-    parser.add_argument('--configs_file', type=str, default='/global/u2/a/agarabag/DarkFlow/configs.json')
+    parser.add_argument('--configs_file', type=str, default='/workdir/huichi/NF-C-VAE/configs.json')
     parser.add_argument('--network', type=str, default='convnet', choices=['convnet', 'gcnnet'])
     parser.add_argument('--flow', type=str, default='convflow', choices=['noflow', 'planar', 'orthosnf', 'householdersnf', 'triangularsnf', 'iaf', 'convflow'])
     args = parser.parse_args()
@@ -34,6 +34,8 @@ def run(args):
 
     if args.train_net:
         network.trainer()
+        network.event_generater_SB()
+        # network.tester()
         
     if args.test_net:
         network.tester()
