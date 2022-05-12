@@ -15,6 +15,10 @@ import flows as flows
 
 
 ##################  DEFINE MODEL  #####################
+def init_weights(m):
+    if isinstance(m, nn.Linear):
+        torch.nn.init.normal_(m.weight, 0, np.sqrt(1.55/128))
+
 class ConvNet(nn.Module):
         def __init__(self, args):
             super(ConvNet, self).__init__()
@@ -24,7 +28,7 @@ class ConvNet(nn.Module):
 
   
             self.batch_size = args.batch_size
-  
+
                 
             self.q_z_output_dim = args.q_z_output_dim
             self.z_size = self.latent_dim
@@ -34,36 +38,65 @@ class ConvNet(nn.Module):
             self.q_z_logvar = nn.Linear(self.q_z_output_dim, self.latent_dim)
 
             self.dnn = nn.Sequential(
-                  nn.Linear(5, 64),
-                  nn.BatchNorm1d(64),
+                  nn.Linear(5, 128),
+                #   nn.BatchNorm1d(128),
                   nn.ReLU(),
-                  nn.Linear(64, 32),
-                  nn.BatchNorm1d(32),
+                  nn.Linear(128, 128),
+                #   nn.BatchNorm1d(128),
                   nn.ReLU(),
-                  nn.Linear(32, 16),
-                  nn.BatchNorm1d(16),
+                  nn.Linear(128, 128),
+                #   nn.BatchNorm1d(128),
+                  nn.ReLU(),
+                  nn.Linear(128, 128),
+                #   nn.BatchNorm1d(128),
+                  nn.ReLU(),
+                  nn.Linear(128, 128),
+                #   nn.BatchNorm1d(128),
+                  nn.ReLU(),
+                  nn.Linear(128, 128),
+                #   nn.BatchNorm1d(128),
                   nn.ReLU()
-                  ) 
+                  )
+            self.dnn.apply(init_weights)
+
             self.ddnn = nn.Sequential(
-                  nn.Linear(16, 64),
-                  nn.BatchNorm1d(64),
+                  nn.Linear(21, 128),
+                #   nn.BatchNorm1d(128),
                   nn.ReLU(),
-                  nn.Linear(64, 16),
-                  nn.BatchNorm1d(16),
+                  nn.Linear(128, 128),
+                #   nn.BatchNorm1d(128),
                   nn.ReLU(),
-                  nn.Linear(16, 4),
-                  # nn.BatchNorm1d(8),
-                  # nn.ReLU()
-                  ) 
+                  nn.Linear(128, 128),
+                #   nn.BatchNorm1d(128),
+                  nn.ReLU(),
+                  nn.Linear(128, 128),
+                #   nn.BatchNorm1d(128),
+                  nn.ReLU(),
+                  nn.Linear(128, 128),
+                #   nn.BatchNorm1d(128),
+                  nn.ReLU(),
+                  nn.Linear(128, 128),
+                #   nn.BatchNorm1d(128),
+                  nn.ReLU()
+                  )
+            self.ddnn.apply(init_weights)
+
+            self.decode_out = nn.Sequential(
+                  nn.Linear(128, 4),
+                #   nn.BatchNorm1d(4),
+                  nn.Tanh()
+                  )
             # log-det-jacobian = 0 without flows
             self.ldj = 0
     
+        
         def encode(self, x, y):
           
             # print("TTTTTTTTT: ", x.size(), y.size())
             out = torch.cat((x, y),axis=1)
             # print("TTTTTTTTT: ", out.ndim)
             out = self.dnn(out)
+
             mean  = self.q_z_mean(out)
             # print("TTTTTTTTT1")
             logvar = self.q_z_logvar(out)
@@ -76,6 +109,7 @@ class ConvNet(nn.Module):
             # print("TTTTTTTTT: ", out.size())
             # print("TTTTTTTTT: ", out.ndim)
             out = self.ddnn(out)
+            out = self.decode_out(out)
             
             return out
     
