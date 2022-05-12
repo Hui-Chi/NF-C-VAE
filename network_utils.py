@@ -55,7 +55,8 @@ def compute_loss(x, x_decoded, mean, logvar, batch_size=1, beta=1):
     # Compares mu = mean, sigma = exp(0.5 * logvar) gaussians with standard gaussians, with weight per event incorporated
     mse = nn.MSELoss()
     KL_divergence = 0.5 * torch.sum((torch.pow(mean, 2) + torch.exp(logvar) - logvar - 1.0)).sum() / batch_size 
-    loss = torch.mean((1-beta)*mse(x, x_decoded) + (beta * KL_divergence))
+    # KL_divergence = 0.5 * torch.sum((torch.pow(mean, 2) + torch.exp(logvar) - logvar - 1.0), dim=-1).sum() / batch_size
+    loss = torch.mean((1-beta)*mse(x, x_decoded)/batch_size + (beta * KL_divergence))
     return loss, (beta * KL_divergence)
 
 # Train
