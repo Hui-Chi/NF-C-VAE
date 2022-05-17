@@ -193,8 +193,6 @@ class ConvNetRunner:
         self.train_y_kl = []
         self.train_y_loss = []
         
-        self.train_z_mu = []
-        self.train_z_var = []
         # self.val_y_rec = []
         self.val_y_kl = []
         self.val_y_loss = []
@@ -207,8 +205,8 @@ class ConvNetRunner:
             print('Starting to train ...')
 
             # adjust learning rate
-            epoch1 = 240
-            epoch2 = 120
+            epoch1 = 1
+            epoch2 = 1
 
             if epoch < epoch1*4:
                 itr = epoch // epoch1
@@ -224,6 +222,8 @@ class ConvNetRunner:
             tr_loss_aux = 0.0
             tr_kl_aux = 0.0
             tr_rec_aux = 0.0
+            self.train_z_mu = np.empty(0)
+            self.train_z_var = np.empty(0)
             # encoder_z_mean = []
             # encoder_z_std = []
 
@@ -239,8 +239,12 @@ class ConvNetRunner:
                 # print("TTTTTTTTTT: ", z_mu.cpu().detach().numpy().size)
                 # encoder_z_mean.append(z_mu)
                 # encoder_z_std.append(z_var)
-                self.train_z_mu.append(z_mu.cpu().detach().numpy())
-                self.train_z_var.append(z_var.cpu().detach().numpy())
+                if self.train_z_mu.shape[0] == 0:
+                    self.train_z_mu = z_mu.cpu().detach().numpy()
+                    self.train_z_var = z_var.cpu().detach().numpy()
+                else:
+                    self.train_z_mu = np.concatenate((self.train_z_mu, z_mu.cpu().detach().numpy()))
+                    self.train_z_var = np.concatenate((self.train_z_var, z_var.cpu().detach().numpy()))
                 # tr_rec_aux += tr_eucl
 
             print('Moving to validation stage ...')
@@ -259,8 +263,8 @@ class ConvNetRunner:
                 val_kl_aux += float(val_kl)
                 # val_rec_aux += val_eucl
 
-            self.train_y_loss.append(tr_loss_aux.cpu().detach().numpy()/(len(self.train_loader)))
-            self.train_y_kl.append(tr_kl_aux.cpu().detach().numpy()/(len(self.train_loader)))
+            self.train_y_loss.append(tr_loss_aux/(len(self.train_loader)))
+            self.train_y_kl.append(tr_kl_aux/(len(self.train_loader)))
             
             # print("TTTTTTTTTTTTB: ", encoder_z_mean)
             # self.train_z_mu.append(encoder_z_mean.cpu().detach().numpy())
@@ -286,6 +290,7 @@ class ConvNetRunner:
                 
                 self.best_train_z_mu = self.train_z_mu
                 self.best_train_z_var = self.train_z_var
+                # print("latent_mean shape: ", np.array(self.train_z_mu).shape)
                 print('Best Model Yet')
 
 
@@ -323,8 +328,8 @@ class ConvNetRunner:
             best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_noCond.npy", allow_pickle=True)
 
             # reshape to (nEvent, latent_dim)
-            best_z_mu = np.concatenate(best_z_mu, axis=0)
-            best_z_logvar = np.concatenate(best_z_logvar, axis=0)
+            # best_z_mu = np.concatenate(best_z_mu, axis=0)
+            # best_z_logvar = np.concatenate(best_z_logvar, axis=0)
 
             best_z_var = np.exp(best_z_logvar)
             best_z_std = np.sqrt(best_z_var)
