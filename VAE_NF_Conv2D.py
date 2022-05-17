@@ -38,46 +38,46 @@ class ConvNet(nn.Module):
             self.q_z_logvar = nn.Linear(self.q_z_output_dim, self.latent_dim)
 
             self.dnn = nn.Sequential(
-                  nn.Linear(5, 128),
+                  nn.Linear(4, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU(),
+                  nn.ELU(),
                   nn.Linear(128, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU(),
+                  nn.ELU(),
                   nn.Linear(128, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU(),
+                  nn.ELU(),
                   nn.Linear(128, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU(),
+                  nn.ELU(),
                   nn.Linear(128, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU(),
+                  nn.ELU(),
                   nn.Linear(128, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU()
+                  nn.ELU()
                   )
             self.dnn.apply(init_weights)
 
             self.ddnn = nn.Sequential(
-                  nn.Linear(21, 128),
+                  nn.Linear(20, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU(),
+                  nn.ELU(),
                   nn.Linear(128, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU(),
+                  nn.ELU(),
                   nn.Linear(128, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU(),
+                  nn.ELU(),
                   nn.Linear(128, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU(),
+                  nn.ELU(),
                   nn.Linear(128, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU(),
+                  nn.ELU(),
                   nn.Linear(128, 128),
                 #   nn.BatchNorm1d(128),
-                  nn.ReLU()
+                  nn.ELU()
                   )
             self.ddnn.apply(init_weights)
 
@@ -90,12 +90,12 @@ class ConvNet(nn.Module):
             self.ldj = 0
     
         
-        def encode(self, x, y):
+        def encode(self, x):
           
             # print("TTTTTTTTT: ", x.size(), y.size())
-            out = torch.cat((x, y),axis=1)
+            # out = torch.cat((x, y),axis=1)
             # print("TTTTTTTTT: ", out.ndim)
-            out = self.dnn(out)
+            out = self.dnn(x)
 
             mean  = self.q_z_mean(out)
             # print("TTTTTTTTT1")
@@ -104,11 +104,10 @@ class ConvNet(nn.Module):
             return mean, logvar
             
     
-        def decode(self, z, y):
-            out = torch.cat((z, y),axis=1)
+        def decode(self, z):
             # print("TTTTTTTTT: ", out.size())
             # print("TTTTTTTTT: ", out.ndim)
-            out = self.ddnn(out)
+            out = self.ddnn(z)
             out = self.decode_out(out)
             
             return out
@@ -117,10 +116,10 @@ class ConvNet(nn.Module):
             z = mean + torch.randn_like(mean) * torch.exp(0.5 * logvar)
             return z
     
-        def forward(self, x, y):
-            mean, logvar = self.encode(x, y)
+        def forward(self, x):
+            mean, logvar = self.encode(x)
             z = self.reparameterize(mean, logvar)
-            out = self.decode(z, y)
+            out = self.decode(z)
             return out, mean, logvar, self.ldj, z, z
 
 
