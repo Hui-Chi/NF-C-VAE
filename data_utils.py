@@ -228,7 +228,7 @@ def save_run_history(best_model, model, model_save_path, model_name, x_graph, tr
     # outFile.create_dataset('train_loss_kl', data = train_y_kl, compression='gzip')
     # outFile.create_dataset('train_loss', data = train_y_loss, compression='gzip')
     # outFile.close()
-    print('** Done **')
+    print('** Done saving model **')
 
 def build_graph(x):
     # print('BUilding graph ...')

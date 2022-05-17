@@ -113,7 +113,16 @@ class ConvNetRunner:
         print('shape of data: ', cond_data.shape)
 
 
+        # scalar_x = StandardScaler()
+        # scalar_x.fit(data)
+        # data = scalar_x.transform(data)
+        # self.scalar_x = scalar_x
 
+        # scalar_cond = StandardScaler()
+        # cond_data = np.reshape(cond_data, [-1, 1])
+        # scalar_cond.fit(cond_data)
+        # cond_data = scalar_cond.transform(cond_data)
+        # self.scalar_cond = scalar_cond
 
         max = np.empty(nFeat)
         for i in range(0,data.shape[1]):
@@ -197,6 +206,20 @@ class ConvNetRunner:
             self.x_graph.append(epoch)
             print('Starting to train ...')
 
+            # adjust learning rate
+            epoch1 = 240
+            epoch2 = 120
+
+            if epoch < epoch1*4:
+                itr = epoch // epoch1
+                self.learning_rate = 0.001/(2**itr)
+                self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+            else:
+                itr = 4 + (epoch-epoch1*4) // epoch2
+                self.learning_rate = 0.001/(2**itr)
+                self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=0.9, weight_decay=1e-6, nesterov=True)
+
+
             # training
             tr_loss_aux = 0.0
             tr_kl_aux = 0.0
@@ -204,13 +227,14 @@ class ConvNetRunner:
             # encoder_z_mean = []
             # encoder_z_std = []
 
+
             for y, (x_train, met_tr) in tqdm(enumerate(zip(self.train_loader, self.metTr_loader))):
                 if y == (len(self.train_loader)): break
 
-                z_mu, z_var, tr_loss, tr_kl, self.model = train_convnet(self.model, x_train, met_tr, self.optimizer, batch_size=self.batch_size)
+                z_mu, z_var, tr_loss, tr_kl, self.model = train_convnet(self.model, x_train, self.optimizer, batch_size=self.batch_size, beta=self.beta)
                 
-                tr_loss_aux += tr_loss
-                tr_kl_aux += tr_kl
+                tr_loss_aux += float(tr_loss)
+                tr_kl_aux += float(tr_kl)
                 
                 # print("TTTTTTTTTT: ", z_mu.cpu().detach().numpy().size)
                 # encoder_z_mean.append(z_mu)
@@ -229,10 +253,10 @@ class ConvNetRunner:
                 if y == (len(self.val_loader)): break
                 
                 #Test
-                _, val_loss, val_kl = test_convnet(self.model, x_val, met_va, batch_size=self.batch_size)
+                _, val_loss, val_kl = test_convnet(self.model, x_val, met_va, batch_size=self.batch_size, beta=self.beta)
 
-                val_loss_aux += val_loss
-                val_kl_aux += val_kl
+                val_loss_aux += float(val_loss)
+                val_kl_aux += float(val_kl)
                 # val_rec_aux += val_eucl
 
             self.train_y_loss.append(tr_loss_aux.cpu().detach().numpy()/(len(self.train_loader)))
@@ -271,8 +295,9 @@ class ConvNetRunner:
         # print("BBBBBGGGGGGGGGG:  ", self.best_train_z_mu)
 
 
-        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean.npy', self.best_train_z_mu)
-        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std.npy', self.best_train_z_var)
+        print("Save latent info.")
+        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_noCond.npy', self.best_train_z_mu)
+        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std_noCond.npy', self.best_train_z_var)
         # np.save('/workdir/huichi/NF-C-VAE/model_save/latent_mean.npy', self.train_z_mu)
         # np.save('/workdir/huichi/NF-C-VAE/model_save/latent_std.npy', self.train_z_var)
         save_run_history(self.best_model, self.model, self.model_save_path, self.model_name, 
@@ -294,8 +319,8 @@ class ConvNetRunner:
         with torch.no_grad():
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-            best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean.npy", allow_pickle=True)
-            best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std.npy", allow_pickle=True)
+            best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_noCond.npy", allow_pickle=True)
+            best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_noCond.npy", allow_pickle=True)
 
             # reshape to (nEvent, latent_dim)
             best_z_mu = np.concatenate(best_z_mu, axis=0)
@@ -310,17 +335,19 @@ class ConvNetRunner:
             for i in range(0,self.N_bkg_SB):
                 for j in range(0,self.latent_dim):
                     z_samples[l,j] = np.random.normal(best_z_mu[i%self.trainsize,j], 0.05+best_z_std[i%self.trainsize,j])
+                    # z_samples[l,j] = np.random.normal(0,1)
                 l=l+1
                 
             z_samples_tensor = torch.from_numpy(z_samples.astype('float32')).to(device)
             cond_data_tensor = torch.from_numpy(np.reshape(self.cond_data, [-1, 1]).astype('float32')).to(device)
 
-            new_events = self.model.decode(z_samples_tensor, cond_data_tensor).data.cpu().numpy()
+            new_events = self.model.decode(z_samples_tensor).data.cpu().numpy()
 
             for i in range(0,new_events.shape[1]):
                 new_events[:,i]=new_events[:,i]*self.x_max[i]
+            # new_events = self.scalar_x.inverse_transform(new_events)
 
-            np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_events.csv', new_events)
+            np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_B-VAE_events.csv', new_events)
 
         print("Done generating SB events.")
 
@@ -351,7 +378,7 @@ class ConvNetRunner:
             if y == (len(self.test_loader)): break
             
             #Test
-            x_decoded, _, __ = test_convnet(self.model, x_test, met_te, batch_size=self.batch_size)
+            x_decoded, _, __ = test_convnet(self.model, x_test, met_te, batch_size=self.batch_size, beta=self.beta)
             self.new_events.append(x_decoded.cpu().detach().numpy())
             
             # self.test_ev_loss.append(te_loss.cpu().detach().numpy())
@@ -366,8 +393,9 @@ class ConvNetRunner:
         self.new_events = np.concatenate(self.new_events, axis=0)
         for i in range(0,self.new_events.shape[1]):
             self.new_events[:,i]=self.new_events[:,i]*self.x_max[i]
+        # self.new_events = self.scalar_x.inverse_transform(self.new_events)
 
-        np.savetxt('/workdir/huichi/NF-C-VAE/data_save/gen_train.csv', self.new_events)
+        np.savetxt('/workdir/huichi/NF-C-VAE/data_save/gen_train_noCond.csv', self.new_events)
 
         print('Testing Complete')
 
