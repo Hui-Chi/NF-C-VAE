@@ -1,5 +1,5 @@
 {
- "model_name": "test_noCond_%s",
+ "model_name": "6var_noCond_%s",
  "num_classes": 1,
  "batch_size": 1024,
  "test_batch_size": 1,

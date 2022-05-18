@@ -88,10 +88,10 @@ class ConvNetRunner:
 
     def preprocess_data(self):
 
-        nFeat = 4
+        nFeat = 6
 
-        outerdata_train = np.load("/workdir/huichi/CATHODE/separated_data/outerdata_train.npy")
-        outerdata_test = np.load("/workdir/huichi/CATHODE/separated_data/outerdata_test.npy")
+        outerdata_train = np.load("/workdir/huichi/CATHODE/preprocessed_data_6var/outerdata_train_6var.npy")
+        outerdata_test = np.load("/workdir/huichi/CATHODE/preprocessed_data_6var/outerdata_test_6var.npy")
 
         outerdata_train = outerdata_train[outerdata_train[:,nFeat+1]==0]
         outerdata_test = outerdata_test[outerdata_test[:,nFeat+1]==0]
@@ -301,8 +301,8 @@ class ConvNetRunner:
 
 
         print("Save latent info.")
-        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_noCond.npy', self.best_train_z_mu)
-        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std_noCond.npy', self.best_train_z_var)
+        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_noCond_6var.npy', self.best_train_z_mu)
+        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std_noCond_6var.npy', self.best_train_z_var)
         # np.save('/workdir/huichi/NF-C-VAE/model_save/latent_mean.npy', self.train_z_mu)
         # np.save('/workdir/huichi/NF-C-VAE/model_save/latent_std.npy', self.train_z_var)
         save_run_history(self.best_model, self.model, self.model_save_path, self.model_name, 
@@ -324,8 +324,8 @@ class ConvNetRunner:
         with torch.no_grad():
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-            best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_noCond.npy", allow_pickle=True)
-            best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_noCond.npy", allow_pickle=True)
+            best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_noCond_6var.npy", allow_pickle=True)
+            best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_noCond_6var.npy", allow_pickle=True)
 
             # reshape to (nEvent, latent_dim)
             # best_z_mu = np.concatenate(best_z_mu, axis=0)
@@ -352,7 +352,7 @@ class ConvNetRunner:
                 new_events[:,i]=new_events[:,i]*self.x_max[i]
             # new_events = self.scalar_x.inverse_transform(new_events)
 
-            np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_B-VAE_events.csv', new_events)
+            np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_B-VAE_events_6var.csv', new_events)
 
         print("Done generating SB events.")
 

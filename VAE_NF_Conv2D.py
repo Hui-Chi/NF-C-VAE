@@ -38,7 +38,7 @@ class ConvNet(nn.Module):
             self.q_z_logvar = nn.Linear(self.q_z_output_dim, self.latent_dim)
 
             self.dnn = nn.Sequential(
-                  nn.Linear(4, 128),
+                  nn.Linear(6, 128),
                 #   nn.BatchNorm1d(128),
                   nn.ELU(),
                   nn.Linear(128, 128),
@@ -82,8 +82,8 @@ class ConvNet(nn.Module):
             self.ddnn.apply(init_weights)
 
             self.decode_out = nn.Sequential(
-                  nn.Linear(128, 4),
-                #   nn.BatchNorm1d(4),
+                  nn.Linear(128, 6),
+                #   nn.BatchNorm1d(6),
                   nn.Tanh()
                   )
             # log-det-jacobian = 0 without flows
