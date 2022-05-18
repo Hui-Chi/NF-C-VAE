@@ -205,8 +205,8 @@ class ConvNetRunner:
             print('Starting to train ...')
 
             # adjust learning rate
-            epoch1 = 1
-            epoch2 = 1
+            epoch1 = 240
+            epoch2 = 120
 
             if epoch < epoch1*4:
                 itr = epoch // epoch1
