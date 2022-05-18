@@ -6,7 +6,7 @@
  "learning_rate": 0.001,
  "latent_dim": 20,
  "beta": 0.000001,       
- "num_epochs": 7,
+ "num_epochs": 1320,
  "data_save_path": "/workdir/huichi/NF-C-VAE/data_save/",
  "model_save_path" : "/workdir/huichi/NF-C-VAE/model_save/",
  "test_data_save_path" : "/workdir/huichi/NF-C-VAE/test_data_save",
