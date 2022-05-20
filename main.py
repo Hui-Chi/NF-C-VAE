@@ -35,7 +35,7 @@ def run(args):
     if args.train_net:
         network.trainer()
         network.event_generater_SB()
-        # network.tester()
+        network.event_generater_SR()
         
     if args.test_net:
         network.tester()

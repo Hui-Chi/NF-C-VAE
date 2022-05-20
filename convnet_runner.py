@@ -11,12 +11,13 @@ import torchvision.transforms as transforms
 import torchvision.datasets
 from sklearn.utils import shuffle
 from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KernelDensity
 from pickle import dump
 import numpy as np
 import h5py
 from tqdm import tqdm
 
-from data_utils import save_npy, save_csv, read_npy, save_run_history
+from data_utils import save_npy, save_csv, read_npy, save_run_history, quick_logit, logit_transform_inverse
 from network_utils import train_convnet, test_convnet
 import VAE_NF_Conv2D as VAE
 
@@ -33,6 +34,7 @@ class ConvNetRunner:
         # self.Met_bsm_filename = args.Met_bsm_filename
         self.model_name = args.model_name
         self.num_epochs = args.num_epochs
+        self.num_gen_SR = args.num_gen_SR
         self.num_classes = args.num_classes
         # self.training_fraction = args.training_fraction
         self.batch_size = args.batch_size
@@ -124,16 +126,16 @@ class ConvNetRunner:
         # cond_data = scalar_cond.transform(cond_data)
         # self.scalar_cond = scalar_cond
 
-        max = np.empty(nFeat)
+        x_max = np.empty(nFeat)
         for i in range(0,data.shape[1]):
-            max[i] = np.max(np.abs(data[:,i]))
-            if np.abs(max[i]) > 0: 
-                data[:,i] = data[:,i]/max[i]
+            x_max[i] = np.max(np.abs(data[:,i]))
+            if np.abs(x_max[i]) > 0: 
+                data[:,i] = data[:,i]/x_max[i]
             else:
                 pass
 
         self.data = data
-        self.x_max = max
+        self.x_max = x_max
 
         cond_max = np.max(np.abs(cond_data))
         if np.abs(cond_max) > 0:
@@ -142,6 +144,7 @@ class ConvNetRunner:
             pass
 
         self.cond_data = cond_data
+        self.cond_max = cond_max
         self.N_bkg_SB = cond_data.shape[0]
 
 
@@ -176,7 +179,14 @@ class ConvNetRunner:
         self.met_val = y_test
         
 
+        ####################################
+        # process inner data
 
+        innerdata_train = np.load("../CATHODE/preprocessed_data_6var/innerdata_train_6var.npy")
+        innerdata_train = innerdata_train[innerdata_train[:,nFeat+1]==0]
+        y_innerdata_train = innerdata_train[:,0]
+        self.y_innerdata_train = y_innerdata_train
+        
 
     def trainer(self):
         self.train_loader = DataLoader(dataset = self.x_train, batch_size = self.batch_size, shuffle=True)
@@ -231,7 +241,7 @@ class ConvNetRunner:
             for y, (x_train, met_tr) in tqdm(enumerate(zip(self.train_loader, self.metTr_loader))):
                 if y == (len(self.train_loader)): break
 
-                z_mu, z_var, tr_loss, tr_kl, self.model = train_convnet(self.model, x_train, self.optimizer, batch_size=self.batch_size, beta=self.beta)
+                z_mu, z_var, tr_loss, tr_kl, self.model = train_convnet(self.model, x_train, met_tr, self.optimizer, batch_size=self.batch_size, beta=self.beta)
                 
                 tr_loss_aux += float(tr_loss)
                 tr_kl_aux += float(tr_kl)
@@ -301,10 +311,10 @@ class ConvNetRunner:
 
 
         print("Save latent info.")
-        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_noCond_6var.npy', self.best_train_z_mu)
-        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std_noCond_6var.npy', self.best_train_z_var)
-        # np.save('/workdir/huichi/NF-C-VAE/model_save/latent_mean.npy', self.train_z_mu)
-        # np.save('/workdir/huichi/NF-C-VAE/model_save/latent_std.npy', self.train_z_var)
+        # np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var_NF.npy', self.best_train_z_mu)
+        # np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var_NF.npy', self.best_train_z_var)
+        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var.npy', self.best_train_z_mu)
+        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var.npy', self.best_train_z_var)
         save_run_history(self.best_model, self.model, self.model_save_path, self.model_name, 
                             self.x_graph, self.train_y_kl, self.train_y_loss, hist_name='TrainHistory')
         # save_run_history(self.best_model, self.model, self.model_save_path, self.model_name, 
@@ -324,8 +334,10 @@ class ConvNetRunner:
         with torch.no_grad():
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-            best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_noCond_6var.npy", allow_pickle=True)
-            best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_noCond_6var.npy", allow_pickle=True)
+            # best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var_NF.npy", allow_pickle=True)
+            # best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var_NF.npy", allow_pickle=True)
+            best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var.npy", allow_pickle=True)
+            best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var.npy", allow_pickle=True)
 
             # reshape to (nEvent, latent_dim)
             # best_z_mu = np.concatenate(best_z_mu, axis=0)
@@ -346,17 +358,71 @@ class ConvNetRunner:
             z_samples_tensor = torch.from_numpy(z_samples.astype('float32')).to(device)
             cond_data_tensor = torch.from_numpy(np.reshape(self.cond_data, [-1, 1]).astype('float32')).to(device)
 
-            new_events = self.model.decode(z_samples_tensor).data.cpu().numpy()
+            new_events = self.model.decode(z_samples_tensor, cond_data_tensor).data.cpu().numpy()
 
             for i in range(0,new_events.shape[1]):
                 new_events[:,i]=new_events[:,i]*self.x_max[i]
             # new_events = self.scalar_x.inverse_transform(new_events)
 
-            np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_B-VAE_events_6var.csv', new_events)
+            # np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_NF_events_6var_SB.csv', new_events)
+            np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_events_6var_SB.csv', new_events)
 
         print("Done generating SB events.")
 
 
+    def event_generater_SR(self):
+        self.model.load_state_dict(torch.load(self.model_save_path + 'BEST_%s.pt' %self.model_name, map_location=torch.device('cpu')))
+        self.model.eval()
+        with torch.no_grad():
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+            # fit and generate mjj values
+            KDE_bandwidth = 0.01
+            mjj_logit = quick_logit(self.y_innerdata_train)
+            train_mjj_vals = logit_transform_inverse(KernelDensity(
+                bandwidth=KDE_bandwidth, kernel='gaussian').fit(
+                    mjj_logit.reshape(-1, 1)).sample(self.num_gen_SR),
+                                                        max(self.y_innerdata_train).item(),
+                                                        min(self.y_innerdata_train).item())
+
+            if np.abs(self.cond_max) > 0:
+                train_mjj_vals_scaled = train_mjj_vals/self.cond_max
+            else:
+                train_mjj_vals_scaled = train_mjj_vals
+
+        
+            # best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var_NF.npy", allow_pickle=True)
+            # best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var_NF.npy", allow_pickle=True)
+            best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var.npy", allow_pickle=True)
+            best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var.npy", allow_pickle=True)
+
+            best_z_var = np.exp(best_z_logvar)
+            best_z_std = np.sqrt(best_z_var)
+
+            z_samples = np.empty([self.num_gen_SR, self.latent_dim])
+
+            l=0
+            for i in range(0,self.num_gen_SR):
+                for j in range(0,self.latent_dim):
+                    z_samples[l,j] = np.random.normal(best_z_mu[i%self.trainsize,j], 0.05+best_z_std[i%self.trainsize,j])
+                    # z_samples[l,j] = np.random.normal(0,1)
+                l=l+1
+                
+            z_samples_tensor = torch.from_numpy(z_samples.astype('float32')).to(device)
+            cond_data_tensor = torch.from_numpy(np.reshape(train_mjj_vals_scaled, [-1, 1]).astype('float32')).to(device)
+
+            new_events = self.model.decode(z_samples_tensor, cond_data_tensor).data.cpu().numpy()
+
+            for i in range(0,new_events.shape[1]):
+                new_events[:,i]=new_events[:,i]*self.x_max[i]
+            # new_events = self.scalar_x.inverse_transform(new_events)
+
+            # np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_NF_events_6var_SR.csv', new_events)
+            np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_events_6var_SR.csv', new_events)
+
+        print("Done generating SR events.")
+    
+    
     def tester(self):
 
         print('Model Type: %s'%self.flow_ID)

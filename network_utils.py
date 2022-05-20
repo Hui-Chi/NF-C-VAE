@@ -61,13 +61,13 @@ def compute_loss(x, x_decoded, mean, logvar, batch_size=1, beta=1):
     return loss, (beta * KL_divergence)
 
 # Train
-def train_convnet(model, x_train, optimizer, batch_size, beta):
+def train_convnet(model, x_train, met_train, optimizer, batch_size, beta):
     input_train = x_train.cuda().float()
-    # met_train = met_train.cuda().float()
+    met_train = met_train.cuda().float()
     # wt_train = wt_train[:].cuda()
     model.train()   
 
-    x_decoded, z_mu, z_var, log_det_j, z0, zk = model(input_train)
+    x_decoded, z_mu, z_var, log_det_j, z0, zk = model(input_train, met_train)
 
     tr_loss, tr_kl = compute_loss(input_train, x_decoded, z_mu, z_var, batch_size=batch_size, beta=beta)
     
@@ -86,7 +86,7 @@ def test_convnet(model, x_test, met_test, batch_size, beta):
         met_test = met_test.cuda().float()
         # wt_test = wt_test[:].cuda()
 
-        x_decoded, z_mu, z_var, log_det_j, z0, zk = model(input_test)
+        x_decoded, z_mu, z_var, log_det_j, z0, zk = model(input_test, met_test)
         
         te_loss, te_kl = compute_loss(input_test, x_decoded, z_mu, z_var, batch_size=batch_size, beta=beta)
 

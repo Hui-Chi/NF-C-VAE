@@ -269,3 +269,18 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     values = torch.from_numpy(sparse_mx.data)
     shape = torch.Size(sparse_mx.shape)
     return torch.sparse.FloatTensor(indices, values, shape)
+
+
+def quick_logit(x):
+    x_norm = (x-min(x))/(max(x)-min(x))
+    x_norm = x_norm[(x_norm != 0) & (x_norm != 1)]
+    logit = np.log(x_norm/(1-x_norm))
+    logit = logit[~np.isnan(logit)]
+    return logit
+
+
+def logit_transform_inverse(data, datamax, datamin):
+    
+    dataout = (datamin + datamax*np.exp(data))/(1 + np.exp(data))
+
+    return dataout

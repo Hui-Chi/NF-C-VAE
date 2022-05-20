@@ -38,7 +38,7 @@ class ConvNet(nn.Module):
             self.q_z_logvar = nn.Linear(self.q_z_output_dim, self.latent_dim)
 
             self.dnn = nn.Sequential(
-                  nn.Linear(6, 128),
+                  nn.Linear(7, 128),
                 #   nn.BatchNorm1d(128),
                   nn.ELU(),
                   nn.Linear(128, 128),
@@ -60,7 +60,7 @@ class ConvNet(nn.Module):
             self.dnn.apply(init_weights)
 
             self.ddnn = nn.Sequential(
-                  nn.Linear(20, 128),
+                  nn.Linear(21, 128),
                 #   nn.BatchNorm1d(128),
                   nn.ELU(),
                   nn.Linear(128, 128),
@@ -90,12 +90,12 @@ class ConvNet(nn.Module):
             self.ldj = 0
     
         
-        def encode(self, x):
+        def encode(self, x, y):
           
             # print("TTTTTTTTT: ", x.size(), y.size())
-            # out = torch.cat((x, y),axis=1)
+            out = torch.cat((x, y),axis=1)
             # print("TTTTTTTTT: ", out.ndim)
-            out = self.dnn(x)
+            out = self.dnn(out)
 
             mean  = self.q_z_mean(out)
             # print("TTTTTTTTT1")
@@ -104,10 +104,11 @@ class ConvNet(nn.Module):
             return mean, logvar
             
     
-        def decode(self, z):
+        def decode(self, z, y):
+            out = torch.cat((z, y),axis=1)
             # print("TTTTTTTTT: ", out.size())
             # print("TTTTTTTTT: ", out.ndim)
-            out = self.ddnn(z)
+            out = self.ddnn(out)
             out = self.decode_out(out)
             
             return out
@@ -116,10 +117,10 @@ class ConvNet(nn.Module):
             z = mean + torch.randn_like(mean) * torch.exp(0.5 * logvar)
             return z
     
-        def forward(self, x):
-            mean, logvar = self.encode(x)
+        def forward(self, x, y):
+            mean, logvar = self.encode(x, y)
             z = self.reparameterize(mean, logvar)
-            out = self.decode(z)
+            out = self.decode(z, y)
             return out, mean, logvar, self.ldj, z, z
 
 
