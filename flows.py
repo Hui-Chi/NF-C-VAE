@@ -12,7 +12,7 @@ import numpy as np
 import math
 import sys
 
-from layers import MaskedConv2d, MaskedLinear, CNN_Flow_Layer, Dilation_Block
+from layers import MaskedConv2d, MaskedLinear, CNN_Flow_Layer, Dilation_Block, FCNN
 
 
 class Planar(nn.Module):
@@ -274,3 +274,52 @@ class CNN_Flow(nn.Module):
             logdetSum += logdet
 
         return z, logdetSum
+
+
+class MAF(nn.Module):
+
+    def __init__(self, z_size, num_hidden=0, base_network=FCNN):
+        super(MAF, self).__init__()
+        self.z_size = z_size
+        self.num_hidden = num_hidden
+
+        self.layers = nn.ModuleList()
+        for i in range(1, self.z_size):
+            self.layers += [base_network(i, 2, num_hidden)]
+
+        # initialize mu and alpha for ith conditional
+        self.initial_param = nn.Parameter(torch.Tensor(2))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.uniform_(self.initial_param, -math.sqrt(0.5), math.sqrt(0.5)).cuda()
+        
+    def forward(self, z):
+        zi = torch.zeros_like(z)
+        log_det = torch.zeros(zi.shape[0]).cuda()
+        for i in range(self.z_size):
+            if i == 0:
+                mu, alpha = self.initial_param[0], self.initial_param[1]
+            else:
+                out = self.layers[i-1](z[:, :i])
+                mu, alpha = out[:, 0], out[:, 1]
+            zi[:, i] = (z[:, i]-mu)/torch.exp(alpha)
+            log_det -= alpha
+
+        return zi.flip(dims=(1,)), log_det
+
+
+class BuildNFlows(nn.Module):
+
+    def __init__(self, flows):
+        super(BuildNFlows, self).__init__()
+        self.flows = nn.ModuleList(flows)
+
+    def forward(self, z):
+        sum_log_det = torch.zeros(z.shape[0]).cuda()
+        for flow in self.flows:
+            z, log_det = flow.forward(z)
+            sum_log_det += log_det
+        
+        return z, sum_log_det
+        

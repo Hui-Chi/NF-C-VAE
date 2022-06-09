@@ -644,14 +644,9 @@ class IAFVAE(ConvNet):
 
     def encode(self, x, y):
         
-        out = self.q_z_nn(x)
-        # flatten
-        out = out.view(out.size(0), -1)
-        out = torch.cat((out, y),axis=1)
-        # dense Layer 1
-        out = self.dense1(out)
-        out = self.dnn_bn1(out)
-        out = torch.relu(out)
+        out = torch.cat((x, y), axis=1)
+        out = self.dnn(out)
+
         # dense Layer 2
         mean  = self.q_z_mean(out)
         logvar = self.q_z_logvar(out)
@@ -662,7 +657,7 @@ class IAFVAE(ConvNet):
         return mean, logvar, h_context
 
     def forward(self, x, y):
-        self.met = y
+
         # mean and variance of z
         z_mu, z_var, h_context = self.encode(x, y)
         # sample z
@@ -672,9 +667,9 @@ class IAFVAE(ConvNet):
         z_k, self.log_det_j = self.flow(z_0, h_context)
 
         # decode
-        x_decoded = self.decode(z_k)
+        x_decoded = self.decode(z_k, y)
 
-        return x_decoded, z_mu, z_var, self.log_det_j, z_0, z_k
+        return x_decoded, z_mu, z_var, self.log_det_j, z_0, h_context
 
 class ConvFlowVAE(ConvNet):
     """
@@ -704,10 +699,40 @@ class ConvFlowVAE(ConvNet):
         z_0 = self.reparameterize(z_mu, z_var)
 
         # Normalizing flows
-        z_k, logdet = self.flow(z_0)
+        z_k, self.log_det_j = self.flow(z_0)
 
         x_decoded = self.decode(z_k, y)
 
         return x_decoded, z_mu, z_var, self.log_det_j, z_0, z_k
 
 
+class MAF_VAE(ConvNet):
+    """
+    Variational auto-encoder with MAF in the encoder.
+    """
+
+    def __init__(self, args):
+        super(MAF_VAE, self).__init__(args)
+
+        # initialize log-det-jacobian to zero
+        self.log_det_j = 0
+
+        # Flow parameters
+        self.num_flows = 4
+        flow_type = flows.MAF(z_size=self.z_size, num_hidden=8)
+        flows_init = [flow_type for _ in range(self.num_flows)]
+        self.flow = flows.BuildNFlows(flows_init)
+        
+    def forward(self, x, y):
+
+        z_mu, z_var = self.encode(x, y)
+        z_0 = self.reparameterize(z_mu, z_var)
+
+        # Normalizing flows
+        z_k, self.log_det_j = self.flow(z_0)
+
+        x_decoded = self.decode(z_k, y)
+
+        return x_decoded, z_mu, z_var, self.log_det_j, z_0, z_k
+
+        

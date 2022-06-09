@@ -34,6 +34,8 @@ class ConvNetRunner:
         # self.Met_bsm_filename = args.Met_bsm_filename
         self.model_name = args.model_name
         self.num_epochs = args.num_epochs
+        self.epoch1 = args.epoch1
+        self.epoch2 = args.epoch2
         self.num_gen_SR = args.num_gen_SR
         self.num_classes = args.num_classes
         # self.training_fraction = args.training_fraction
@@ -41,6 +43,7 @@ class ConvNetRunner:
         self.test_batch_size = args.test_batch_size
         self.learning_rate = args.learning_rate
         self.latent_dim = args.latent_dim
+        self.h_size = args.made_h_size
         self.beta = args.beta
         # self.test_model_path = args.test_model_path
         self.test_data_save_path = args.test_data_save_path
@@ -79,6 +82,9 @@ class ConvNetRunner:
         elif self.flow == 'convflow':
             self.model = VAE.ConvFlowVAE(args)
             self.flow_ID = 'ConvF'
+        elif self.flow == 'maf':
+            self.model = VAE.MAF_VAE(args)
+            self.flow_ID = 'MAF'
         else:
             raise ValueError('Invalid flow choice')
         
@@ -215,8 +221,8 @@ class ConvNetRunner:
             print('Starting to train ...')
 
             # adjust learning rate
-            epoch1 = 240
-            epoch2 = 120
+            epoch1 = self.epoch1
+            epoch2 = self.epoch2
 
             if epoch < epoch1*4:
                 itr = epoch // epoch1
@@ -234,6 +240,8 @@ class ConvNetRunner:
             tr_rec_aux = 0.0
             self.train_z_mu = np.empty(0)
             self.train_z_var = np.empty(0)
+            if self.flow_ID == 'IAF':
+                self.train_h_context = np.empty(0)
             # encoder_z_mean = []
             # encoder_z_std = []
 
@@ -241,7 +249,10 @@ class ConvNetRunner:
             for y, (x_train, met_tr) in tqdm(enumerate(zip(self.train_loader, self.metTr_loader))):
                 if y == (len(self.train_loader)): break
 
-                z_mu, z_var, tr_loss, tr_kl, self.model = train_convnet(self.model, x_train, met_tr, self.optimizer, batch_size=self.batch_size, beta=self.beta)
+                if self.flow_ID == 'IAF': 
+                    z_mu, z_var, h_context, tr_loss, tr_kl, self.model = train_convnet(self.model, x_train, met_tr, self.optimizer, batch_size=self.batch_size, beta=self.beta, flow_id = self.flow_ID)
+                else:
+                    z_mu, z_var, tr_loss, tr_kl, self.model = train_convnet(self.model, x_train, met_tr, self.optimizer, batch_size=self.batch_size, beta=self.beta, flow_id = self.flow_ID)
                 
                 tr_loss_aux += float(tr_loss)
                 tr_kl_aux += float(tr_kl)
@@ -252,9 +263,13 @@ class ConvNetRunner:
                 if self.train_z_mu.shape[0] == 0:
                     self.train_z_mu = z_mu.cpu().detach().numpy()
                     self.train_z_var = z_var.cpu().detach().numpy()
+                    if self.flow_ID == 'IAF':
+                        self.train_h_context = h_context.cpu().detach().numpy()
                 else:
                     self.train_z_mu = np.concatenate((self.train_z_mu, z_mu.cpu().detach().numpy()))
                     self.train_z_var = np.concatenate((self.train_z_var, z_var.cpu().detach().numpy()))
+                    if self.flow_ID == 'IAF':
+                        self.train_h_context = np.concatenate((self.train_h_context, h_context.cpu().detach().numpy()))
                 # tr_rec_aux += tr_eucl
 
             print('Moving to validation stage ...')
@@ -267,7 +282,7 @@ class ConvNetRunner:
                 if y == (len(self.val_loader)): break
                 
                 #Test
-                _, val_loss, val_kl = test_convnet(self.model, x_val, met_va, batch_size=self.batch_size, beta=self.beta)
+                _, val_loss, val_kl = test_convnet(self.model, x_val, met_va, batch_size=self.batch_size, beta=self.beta, flow_id = self.flow_ID)
 
                 val_loss_aux += float(val_loss)
                 val_kl_aux += float(val_kl)
@@ -294,12 +309,16 @@ class ConvNetRunner:
                 
                 self.best_train_z_mu = self.train_z_mu
                 self.best_train_z_var = self.train_z_var
+                if self.flow_ID == 'IAF':
+                    self.best_train_h_context = self.train_h_context
             if (val_loss_aux/(len(self.val_loader))<self.best_val_loss):
                 self.best_model = self.model
                 self.best_val_loss = val_loss_aux/(len(self.val_loader))
                 
                 self.best_train_z_mu = self.train_z_mu
                 self.best_train_z_var = self.train_z_var
+                if self.flow_ID == 'IAF':
+                    self.best_train_h_context = self.train_h_context
                 # print("latent_mean shape: ", np.array(self.train_z_mu).shape)
                 print('Best Model Yet')
 
@@ -311,10 +330,12 @@ class ConvNetRunner:
 
 
         print("Save latent info.")
-        # np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var_NF.npy', self.best_train_z_mu)
-        # np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var_NF.npy', self.best_train_z_var)
-        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var.npy', self.best_train_z_mu)
-        np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var.npy', self.best_train_z_var)
+        save_npy(np.array(self.best_train_z_mu), self.model_save_path + 'best_latent_mean_6var_%s.npy' %self.model_name)
+        save_npy(np.array(self.best_train_z_var), self.model_save_path + 'best_latent_std_6var_%s.npy' %self.model_name)
+        if self.flow_ID == 'IAF':
+            save_npy(np.array(self.best_train_h_context), self.model_save_path + 'best_h_context_6var_%s.npy' %self.model_name)
+        # np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var.npy', self.best_train_z_mu)
+        # np.save('/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var.npy', self.best_train_z_var)
         save_run_history(self.best_model, self.model, self.model_save_path, self.model_name, 
                             self.x_graph, self.train_y_kl, self.train_y_loss, hist_name='TrainHistory')
         # save_run_history(self.best_model, self.model, self.model_save_path, self.model_name, 
@@ -334,10 +355,12 @@ class ConvNetRunner:
         with torch.no_grad():
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-            # best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var_NF.npy", allow_pickle=True)
-            # best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var_NF.npy", allow_pickle=True)
-            best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var.npy", allow_pickle=True)
-            best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var.npy", allow_pickle=True)
+            best_z_mu = np.load(self.model_save_path + 'best_latent_mean_6var_%s.npy' %self.model_name, allow_pickle=True)
+            best_z_logvar = np.load(self.model_save_path + 'best_latent_std_6var_%s.npy' %self.model_name, allow_pickle=True)
+            if self.flow_ID == 'IAF':
+                best_h_context = np.load(self.model_save_path + 'best_h_context_6var_%s.npy' %self.model_name, allow_pickle=True)
+            # best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var.npy", allow_pickle=True)
+            # best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var.npy", allow_pickle=True)
 
             # reshape to (nEvent, latent_dim)
             # best_z_mu = np.concatenate(best_z_mu, axis=0)
@@ -347,16 +370,27 @@ class ConvNetRunner:
             best_z_std = np.sqrt(best_z_var)
 
             z_samples = np.empty([self.N_bkg_SB, self.latent_dim])
+            if self.flow_ID == 'IAF':
+                h_samples = np.empty([self.N_bkg_SB, self.h_size])
 
             l=0
             for i in range(0,self.N_bkg_SB):
+                if self.flow_ID == 'IAF':
+                    h_samples[i,:] = best_h_context[i%self.trainsize,:]
                 for j in range(0,self.latent_dim):
                     z_samples[l,j] = np.random.normal(best_z_mu[i%self.trainsize,j], 0.05+best_z_std[i%self.trainsize,j])
                     # z_samples[l,j] = np.random.normal(0,1)
                 l=l+1
                 
             z_samples_tensor = torch.from_numpy(z_samples.astype('float32')).to(device)
+            if self.flow_ID == 'IAF':
+                h_samples_tensor = torch.from_numpy(h_samples.astype('float32')).to(device)
             cond_data_tensor = torch.from_numpy(np.reshape(self.cond_data, [-1, 1]).astype('float32')).to(device)
+
+            if self.flow_ID == 'ConvF' or self.flow_ID == 'MAF':
+                z_samples_tensor, _ = self.model.flow(z_samples_tensor)
+            if self.flow_ID == 'IAF':
+                z_samples_tensor, _ = self.model.flow(z_samples_tensor, h_samples_tensor)
 
             new_events = self.model.decode(z_samples_tensor, cond_data_tensor).data.cpu().numpy()
 
@@ -365,7 +399,7 @@ class ConvNetRunner:
             # new_events = self.scalar_x.inverse_transform(new_events)
 
             # np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_NF_events_6var_SB.csv', new_events)
-            np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_events_6var_SB.csv', new_events)
+            np.savetxt(self.data_save_path + 'LHCO2020_cB-VAE_events_%s_SB.csv' %self.model_name, new_events)
 
         print("Done generating SB events.")
 
@@ -391,25 +425,38 @@ class ConvNetRunner:
                 train_mjj_vals_scaled = train_mjj_vals
 
         
-            # best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var_NF.npy", allow_pickle=True)
-            # best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var_NF.npy", allow_pickle=True)
-            best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var.npy", allow_pickle=True)
-            best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var.npy", allow_pickle=True)
+            best_z_mu = np.load(self.model_save_path + 'best_latent_mean_6var_%s.npy' %self.model_name, allow_pickle=True)
+            best_z_logvar = np.load(self.model_save_path + 'best_latent_std_6var_%s.npy' %self.model_name, allow_pickle=True)
+            if self.flow_ID == 'IAF':
+                best_h_context = np.load(self.model_save_path + 'best_h_context_6var_%s.npy' %self.model_name, allow_pickle=True)
+            # best_z_mu = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_mean_6var.npy", allow_pickle=True)
+            # best_z_logvar = np.load("/workdir/huichi/NF-C-VAE/model_save/best_latent_std_6var.npy", allow_pickle=True)
 
             best_z_var = np.exp(best_z_logvar)
             best_z_std = np.sqrt(best_z_var)
 
             z_samples = np.empty([self.num_gen_SR, self.latent_dim])
+            if self.flow_ID == 'IAF':
+                h_samples = np.empty([self.num_gen_SR, self.h_size])
 
             l=0
             for i in range(0,self.num_gen_SR):
+                if self.flow_ID == 'IAF':
+                    h_samples[i,:] = best_h_context[i%self.trainsize,:]
                 for j in range(0,self.latent_dim):
                     z_samples[l,j] = np.random.normal(best_z_mu[i%self.trainsize,j], 0.05+best_z_std[i%self.trainsize,j])
                     # z_samples[l,j] = np.random.normal(0,1)
                 l=l+1
                 
             z_samples_tensor = torch.from_numpy(z_samples.astype('float32')).to(device)
+            if self.flow_ID == 'IAF':
+                h_samples_tensor = torch.from_numpy(h_samples.astype('float32')).to(device)
             cond_data_tensor = torch.from_numpy(np.reshape(train_mjj_vals_scaled, [-1, 1]).astype('float32')).to(device)
+
+            if self.flow_ID == 'ConvF' or self.flow_ID == 'MAF':
+                z_samples_tensor, _ = self.model.flow(z_samples_tensor)
+            if self.flow_ID == 'IAF':
+                z_samples_tensor, _ = self.model.flow(z_samples_tensor, h_samples_tensor)
 
             new_events = self.model.decode(z_samples_tensor, cond_data_tensor).data.cpu().numpy()
 
@@ -418,7 +465,7 @@ class ConvNetRunner:
             # new_events = self.scalar_x.inverse_transform(new_events)
 
             # np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_NF_events_6var_SR.csv', new_events)
-            np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_events_6var_SR.csv', new_events)
+            np.savetxt(self.data_save_path + 'LHCO2020_cB-VAE_events_%s_SR.csv' %self.model_name, new_events)
 
         print("Done generating SR events.")
     
@@ -449,7 +496,7 @@ class ConvNetRunner:
             if y == (len(self.test_loader)): break
             
             #Test
-            x_decoded, _, __ = test_convnet(self.model, x_test, met_te, batch_size=self.batch_size, beta=self.beta)
+            x_decoded, _, __ = test_convnet(self.model, x_test, met_te, batch_size=self.batch_size, beta=self.beta, flow_id = self.flow_ID)
             self.new_events.append(x_decoded.cpu().detach().numpy())
             
             # self.test_ev_loss.append(te_loss.cpu().detach().numpy())
