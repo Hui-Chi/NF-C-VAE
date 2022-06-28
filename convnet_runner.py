@@ -41,6 +41,7 @@ class ConvNetRunner:
         # self.training_fraction = args.training_fraction
         self.batch_size = args.batch_size
         self.test_batch_size = args.test_batch_size
+        self.lr_default = args.learning_rate
         self.learning_rate = args.learning_rate
         self.latent_dim = args.latent_dim
         self.h_size = args.made_h_size
@@ -226,11 +227,11 @@ class ConvNetRunner:
 
             if epoch < epoch1*4:
                 itr = epoch // epoch1
-                self.learning_rate = 0.001/(2**itr)
+                self.learning_rate = self.lr_default/(2**itr)
                 self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
             else:
                 itr = 4 + (epoch-epoch1*4) // epoch2
-                self.learning_rate = 0.001/(2**itr)
+                self.learning_rate = self.lr_default/(2**itr)
                 self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=0.9, weight_decay=1e-6, nesterov=True)
 
 

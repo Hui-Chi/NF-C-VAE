@@ -4,4 +4,5 @@ __pycache__
 -z
 model_save/
 data_save/
+*log*.txt
 *~
