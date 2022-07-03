@@ -122,36 +122,36 @@ class ConvNetRunner:
         print('shape of data: ', cond_data.shape)
 
 
-        # scalar_x = StandardScaler()
-        # scalar_x.fit(data)
-        # data = scalar_x.transform(data)
-        # self.scalar_x = scalar_x
+        scalar_x = StandardScaler()
+        scalar_x.fit(data)
+        data = scalar_x.transform(data)
+        self.scalar_x = scalar_x
 
-        # scalar_cond = StandardScaler()
-        # cond_data = np.reshape(cond_data, [-1, 1])
-        # scalar_cond.fit(cond_data)
-        # cond_data = scalar_cond.transform(cond_data)
-        # self.scalar_cond = scalar_cond
+        scalar_cond = StandardScaler()
+        cond_data = np.reshape(cond_data, [-1, 1])
+        scalar_cond.fit(cond_data)
+        cond_data = scalar_cond.transform(cond_data)
+        self.scalar_cond = scalar_cond
 
-        x_max = np.empty(nFeat)
-        for i in range(0,data.shape[1]):
-            x_max[i] = np.max(np.abs(data[:,i]))
-            if np.abs(x_max[i]) > 0: 
-                data[:,i] = data[:,i]/x_max[i]
-            else:
-                pass
+        # x_max = np.empty(nFeat)
+        # for i in range(0,data.shape[1]):
+        #     x_max[i] = np.max(np.abs(data[:,i]))
+        #     if np.abs(x_max[i]) > 0: 
+        #         data[:,i] = data[:,i]/x_max[i]
+        #     else:
+        #         pass
 
         self.data = data
-        self.x_max = x_max
+        # self.x_max = x_max
 
-        cond_max = np.max(np.abs(cond_data))
-        if np.abs(cond_max) > 0:
-            cond_data = cond_data/cond_max
-        else:
-            pass
+        # cond_max = np.max(np.abs(cond_data))
+        # if np.abs(cond_max) > 0:
+        #     cond_data = cond_data/cond_max
+        # else:
+        #     pass
 
         self.cond_data = cond_data
-        self.cond_max = cond_max
+        # self.cond_max = cond_max
         self.N_bkg_SB = cond_data.shape[0]
 
 
@@ -395,9 +395,9 @@ class ConvNetRunner:
 
             new_events = self.model.decode(z_samples_tensor, cond_data_tensor).data.cpu().numpy()
 
-            for i in range(0,new_events.shape[1]):
-                new_events[:,i]=new_events[:,i]*self.x_max[i]
-            # new_events = self.scalar_x.inverse_transform(new_events)
+            # for i in range(0,new_events.shape[1]):
+            #     new_events[:,i]=new_events[:,i]*self.x_max[i]
+            new_events = self.scalar_x.inverse_transform(new_events)
 
             # np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_NF_events_6var_SB.csv', new_events)
             np.savetxt(self.data_save_path + 'LHCO2020_cB-VAE_events_%s_SB.csv' %self.model_name, new_events)
@@ -420,10 +420,11 @@ class ConvNetRunner:
                                                         max(self.y_innerdata_train).item(),
                                                         min(self.y_innerdata_train).item())
 
-            if np.abs(self.cond_max) > 0:
-                train_mjj_vals_scaled = train_mjj_vals/self.cond_max
-            else:
-                train_mjj_vals_scaled = train_mjj_vals
+            # if np.abs(self.cond_max) > 0:
+            #     train_mjj_vals_scaled = train_mjj_vals/self.cond_max
+            # else:
+            #     train_mjj_vals_scaled = train_mjj_vals
+            train_mjj_vals_scaled = self.scalar_cond.transform(train_mjj_vals)
 
         
             best_z_mu = np.load(self.model_save_path + 'best_latent_mean_6var_%s.npy' %self.model_name, allow_pickle=True)
@@ -461,9 +462,9 @@ class ConvNetRunner:
 
             new_events = self.model.decode(z_samples_tensor, cond_data_tensor).data.cpu().numpy()
 
-            for i in range(0,new_events.shape[1]):
-                new_events[:,i]=new_events[:,i]*self.x_max[i]
-            # new_events = self.scalar_x.inverse_transform(new_events)
+            # for i in range(0,new_events.shape[1]):
+            #     new_events[:,i]=new_events[:,i]*self.x_max[i]
+            new_events = self.scalar_x.inverse_transform(new_events)
 
             # np.savetxt('/workdir/huichi/NF-C-VAE/data_save/LHCO2020_cB-VAE_NF_events_6var_SR.csv', new_events)
             np.savetxt(self.data_save_path + 'LHCO2020_cB-VAE_events_%s_SR.csv' %self.model_name, new_events)

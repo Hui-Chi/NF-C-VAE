@@ -39,51 +39,51 @@ class ConvNet(nn.Module):
 
             self.dnn = nn.Sequential(
                   nn.Linear(7, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU(),
+                  nn.BatchNorm1d(128),
+                  nn.ReLU(),
                   nn.Linear(128, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU(),
+                  nn.BatchNorm1d(128),
+                  nn.ReLU(),
                   nn.Linear(128, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU(),
+                  nn.BatchNorm1d(128),
+                  nn.ReLU(),
                   nn.Linear(128, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU(),
+                  nn.BatchNorm1d(128),
+                  nn.ReLU(),
                   nn.Linear(128, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU(),
+                  nn.BatchNorm1d(128),
+                  nn.ReLU(),
                   nn.Linear(128, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU()
+                  nn.BatchNorm1d(128),
+                  nn.ReLU()
                   )
             self.dnn.apply(init_weights)
 
             self.ddnn = nn.Sequential(
                   nn.Linear(21, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU(),
+                  nn.BatchNorm1d(128),
+                  nn.ReLU(),
                   nn.Linear(128, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU(),
+                  nn.BatchNorm1d(128),
+                  nn.ReLU(),
                   nn.Linear(128, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU(),
+                  nn.BatchNorm1d(128),
+                  nn.ReLU(),
                   nn.Linear(128, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU(),
+                  nn.BatchNorm1d(128),
+                  nn.ReLU(),
                   nn.Linear(128, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU(),
+                  nn.BatchNorm1d(128),
+                  nn.ReLU(),
                   nn.Linear(128, 128),
-                #   nn.BatchNorm1d(128),
-                  nn.ELU()
+                  nn.BatchNorm1d(128),
+                  nn.ReLU()
                   )
             self.ddnn.apply(init_weights)
 
             self.decode_out = nn.Sequential(
                   nn.Linear(128, 6),
-                #   nn.BatchNorm1d(6),
+                  nn.BatchNorm1d(6),
                   nn.Tanh()
                   )
             # log-det-jacobian = 0 without flows
